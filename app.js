@@ -1,6 +1,6 @@
 const video = document.getElementById('screenVideo');
 const canvas = document.getElementById('scanCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const clearBtn = document.getElementById('clearBtn');
@@ -15,7 +15,7 @@ let stream = null;
 let scanning = false;
 let detectedCodes = new Set();
 let qrItems = [];
-let scanInterval = null;
+let animationFrameId = null;
 
 startBtn.addEventListener('click', startScanning);
 stopBtn.addEventListener('click', stopScanning);
@@ -25,30 +25,37 @@ async function startScanning() {
     try {
         stream = await navigator.mediaDevices.getDisplayMedia({
             video: {
-                cursor: 'always'
+                cursor: 'always',
+                displaySurface: 'monitor'
             },
             audio: false
         });
 
         video.srcObject = stream;
-        video.style.display = 'block';
-        placeholder.style.display = 'none';
-        startBtn.style.display = 'none';
-        stopBtn.style.display = 'flex';
-        status.textContent = 'Scanning for QR codes...';
-        status.className = 'status scanning';
-        scanning = true;
+
+        // Wait for video to be ready and playing
+        video.onloadedmetadata = () => {
+            video.play().then(() => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                console.log(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
+
+                video.style.display = 'block';
+                placeholder.style.display = 'none';
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'flex';
+                status.textContent = 'Scanning for QR codes...';
+                status.className = 'status scanning';
+                scanning = true;
+
+                // Start scanning loop
+                scanLoop();
+            });
+        };
 
         // Handle stream ending (user clicks "Stop sharing" in browser)
         stream.getVideoTracks()[0].onended = () => {
             stopScanning();
-        };
-
-        // Wait for video to be ready
-        video.onloadedmetadata = () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            scanInterval = setInterval(scanForQRCodes, 200);
         };
 
     } catch (err) {
@@ -61,9 +68,9 @@ async function startScanning() {
 function stopScanning() {
     scanning = false;
 
-    if (scanInterval) {
-        clearInterval(scanInterval);
-        scanInterval = null;
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
     }
 
     if (stream) {
@@ -80,22 +87,49 @@ function stopScanning() {
     status.className = 'status idle';
 }
 
+let lastScanTime = 0;
+const SCAN_INTERVAL = 150; // ms between scans
+
+function scanLoop() {
+    if (!scanning) return;
+
+    const now = performance.now();
+
+    if (now - lastScanTime >= SCAN_INTERVAL) {
+        lastScanTime = now;
+        scanForQRCodes();
+    }
+
+    animationFrameId = requestAnimationFrame(scanLoop);
+}
+
 function scanForQRCodes() {
     if (!scanning || video.readyState !== video.HAVE_ENOUGH_DATA) {
         return;
     }
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    try {
+        // Draw the current video frame to canvas
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'dontInvert'
-    });
+        // Get image data from canvas
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-    if (code && code.data && !detectedCodes.has(code.data)) {
-        detectedCodes.add(code.data);
-        addQRCodeToList(code.data);
-        showToast('QR Code detected!');
+        // Try to detect QR code with both normal and inverted colors
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth'
+        });
+
+        if (code && code.data && code.data.trim() !== '') {
+            if (!detectedCodes.has(code.data)) {
+                console.log('QR Code detected:', code.data);
+                detectedCodes.add(code.data);
+                addQRCodeToList(code.data);
+                showToast('QR Code detected!');
+            }
+        }
+    } catch (err) {
+        console.error('Error scanning for QR codes:', err);
     }
 }
 
