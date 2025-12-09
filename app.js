@@ -17,6 +17,30 @@ let detectedCodes = new Set();
 let qrItems = [];
 let animationFrameId = null;
 
+// Audio context for notification sound
+let audioContext = null;
+
+function playDetectionSound() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.frequency.value = 880; // A5 note
+    oscillator.type = 'sine';
+
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.2);
+}
+
 startBtn.addEventListener('click', startScanning);
 stopBtn.addEventListener('click', stopScanning);
 clearBtn.addEventListener('click', clearList);
@@ -126,6 +150,7 @@ function scanForQRCodes() {
                 detectedCodes.add(code.data);
                 addQRCodeToList(code.data);
                 showToast('QR Code detected!');
+                playDetectionSound();
             }
         }
     } catch (err) {
