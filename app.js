@@ -15,7 +15,7 @@ let stream = null;
 let scanning = false;
 let detectedCodes = new Set();
 let qrItems = [];
-let animationFrameId = null;
+let scanIntervalId = null;
 
 // Audio context for notification sound
 let audioContext = null;
@@ -72,8 +72,8 @@ async function startScanning() {
                 status.className = 'status scanning';
                 scanning = true;
 
-                // Start scanning loop
-                scanLoop();
+                // Start scanning loop using setInterval (works when tab is hidden)
+                scanIntervalId = setInterval(scanForQRCodes, SCAN_INTERVAL);
             });
         };
 
@@ -92,9 +92,9 @@ async function startScanning() {
 function stopScanning() {
     scanning = false;
 
-    if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
+    if (scanIntervalId) {
+        clearInterval(scanIntervalId);
+        scanIntervalId = null;
     }
 
     if (stream) {
@@ -111,21 +111,7 @@ function stopScanning() {
     status.className = 'status idle';
 }
 
-let lastScanTime = 0;
 const SCAN_INTERVAL = 150; // ms between scans
-
-function scanLoop() {
-    if (!scanning) return;
-
-    const now = performance.now();
-
-    if (now - lastScanTime >= SCAN_INTERVAL) {
-        lastScanTime = now;
-        scanForQRCodes();
-    }
-
-    animationFrameId = requestAnimationFrame(scanLoop);
-}
 
 function scanForQRCodes() {
     if (!scanning || video.readyState !== video.HAVE_ENOUGH_DATA) {
