@@ -16,6 +16,8 @@ let scanning = false;
 let detectedCodes = new Set();
 let qrItems = [];
 let scanIntervalId = null;
+let lastDetectedCode = null;
+let lastDuplicateSoundTime = 0;
 
 // Audio context for notification sound
 let audioContext = null;
@@ -39,6 +41,27 @@ function playDetectionSound() {
 
     oscillator.start(audioContext.currentTime);
     oscillator.stop(audioContext.currentTime + 0.2);
+}
+
+function playDuplicateSound() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.frequency.value = 200; // Low frequency for error sound
+    oscillator.type = 'square';
+
+    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.15);
 }
 
 startBtn.addEventListener('click', startScanning);
@@ -137,6 +160,13 @@ function scanForQRCodes() {
                 addQRCodeToList(code.data);
                 showToast('QR Code detected!');
                 playDetectionSound();
+                lastDetectedCode = code.data;
+                lastDuplicateSoundTime = 0;
+            } else if (code.data !== lastDetectedCode || Date.now() - lastDuplicateSoundTime > 2000) {
+                // Play duplicate sound if it's a different duplicate or 2 seconds have passed
+                playDuplicateSound();
+                lastDetectedCode = code.data;
+                lastDuplicateSoundTime = Date.now();
             }
         }
     } catch (err) {
