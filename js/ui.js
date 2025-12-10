@@ -3,8 +3,17 @@ import { store, clearCodes } from './state.js';
 
 // DOM Elements
 let elements = {};
+let initialized = false;
 
 export function initUI() {
+    if (initialized) return;
+
+    // Subscribe to state changes
+    store.subscribe(updateUI);
+    initialized = true;
+}
+
+export function initScannerUI() {
     elements = {
         video: document.getElementById('screenVideo'),
         canvas: document.getElementById('scanCanvas'),
@@ -19,10 +28,9 @@ export function initUI() {
         toast: document.getElementById('toast')
     };
 
-    elements.clearBtn.addEventListener('click', handleClearList);
-
-    // Subscribe to state changes
-    store.subscribe(updateUI);
+    if (elements.clearBtn) {
+        elements.clearBtn.addEventListener('click', handleClearList);
+    }
 }
 
 export function getElements() {
@@ -30,15 +38,21 @@ export function getElements() {
 }
 
 export function getCanvasContext() {
+    if (!elements.canvas) return null;
     return elements.canvas.getContext('2d', { willReadFrequently: true });
 }
 
 function updateUI(state) {
-    elements.countBadge.textContent = state.qrItems.length;
-    elements.emptyState.style.display = state.qrItems.length === 0 ? 'block' : 'none';
+    if (elements.countBadge) {
+        elements.countBadge.textContent = state.qrItems.length;
+    }
+    if (elements.emptyState) {
+        elements.emptyState.style.display = state.qrItems.length === 0 ? 'block' : 'none';
+    }
 }
 
 export function showScanning() {
+    if (!elements.video) return;
     elements.video.style.display = 'block';
     elements.placeholder.style.display = 'none';
     elements.startBtn.style.display = 'none';
@@ -48,6 +62,7 @@ export function showScanning() {
 }
 
 export function showStopped() {
+    if (!elements.video) return;
     elements.video.style.display = 'none';
     elements.placeholder.style.display = 'block';
     elements.startBtn.style.display = 'flex';
@@ -57,11 +72,14 @@ export function showStopped() {
 }
 
 export function showError(message) {
+    if (!elements.status) return;
     elements.status.textContent = message;
     elements.status.className = 'status idle';
 }
 
 export function addQRCodeToUI(item) {
+    if (!elements.qrList) return;
+
     const state = store.getState();
     elements.emptyState.style.display = 'none';
     elements.countBadge.textContent = state.qrItems.length;
@@ -96,17 +114,21 @@ export function addQRCodeToUI(item) {
 
 function handleClearList() {
     clearCodes();
-    elements.qrList.innerHTML = '';
-    elements.emptyState.style.display = 'block';
-    elements.qrList.appendChild(elements.emptyState);
-    elements.countBadge.textContent = '0';
+    if (elements.qrList) {
+        elements.qrList.innerHTML = '';
+        elements.emptyState.style.display = 'block';
+        elements.qrList.appendChild(elements.emptyState);
+        elements.countBadge.textContent = '0';
+    }
 }
 
 export function showToast(message) {
-    elements.toast.textContent = message;
-    elements.toast.classList.add('show');
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
     setTimeout(() => {
-        elements.toast.classList.remove('show');
+        toast.classList.remove('show');
     }, 2000);
 }
 

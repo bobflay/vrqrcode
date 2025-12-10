@@ -1,21 +1,40 @@
 // Scanner module
 import { store, addDetectedCode, updateDuplicateTime, setScanning, hasCode } from './state.js';
 import { playDetectionSound, playDuplicateSound } from './audio.js';
-import { getElements, getCanvasContext, showScanning, showStopped, showError, addQRCodeToUI, showToast } from './ui.js';
+import { initScannerUI, getElements, getCanvasContext, showScanning, showStopped, showError, addQRCodeToUI, showToast } from './ui.js';
 
 let stream = null;
 let scanIntervalId = null;
+let scannerInitialized = false;
 const SCAN_INTERVAL = 150;
 
 export function initScanner() {
+    if (scannerInitialized) return;
+
+    // Initialize scanner UI elements
+    initScannerUI();
+
     const { startBtn, stopBtn } = getElements();
-    startBtn.addEventListener('click', startScanning);
-    stopBtn.addEventListener('click', stopScanning);
+
+    if (startBtn) {
+        startBtn.addEventListener('click', startScanning);
+    }
+    if (stopBtn) {
+        stopBtn.addEventListener('click', stopScanning);
+    }
+
+    scannerInitialized = true;
+    console.log('Scanner initialized');
 }
 
 async function startScanning() {
     try {
         const { video, canvas } = getElements();
+
+        if (!video || !canvas) {
+            console.error('Video or canvas element not found');
+            return;
+        }
 
         stream = await navigator.mediaDevices.getDisplayMedia({
             video: {
@@ -64,7 +83,9 @@ export function stopScanning() {
     }
 
     const { video } = getElements();
-    video.srcObject = null;
+    if (video) {
+        video.srcObject = null;
+    }
 
     showStopped();
 }
@@ -74,7 +95,7 @@ function scanForQRCodes() {
     const { video, canvas } = getElements();
     const ctx = getCanvasContext();
 
-    if (!state.scanning || video.readyState !== video.HAVE_ENOUGH_DATA) {
+    if (!state.scanning || !video || video.readyState !== video.HAVE_ENOUGH_DATA || !ctx) {
         return;
     }
 
