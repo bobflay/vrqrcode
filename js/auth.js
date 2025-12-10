@@ -32,6 +32,18 @@ export function isAuthenticated() {
     return !!getToken();
 }
 
+export function hasRole(roleName) {
+    const user = getUser();
+    if (!user || !user.roles || !Array.isArray(user.roles)) {
+        return false;
+    }
+    return user.roles.some(role => role.name === roleName);
+}
+
+export function isDelegue() {
+    return hasRole('DELEGUE');
+}
+
 export function logout() {
     authToken = null;
     userData = null;
@@ -53,8 +65,22 @@ export async function login(username, password) {
         const data = await response.json();
 
         if (data.success && data.success.token) {
+            const user = data.success.data;
+
+            // Check if user has DELEGUE role
+            const hasDelegueRole = user.roles &&
+                Array.isArray(user.roles) &&
+                user.roles.some(role => role.name === 'DELEGUE');
+
+            if (!hasDelegueRole) {
+                return {
+                    success: false,
+                    error: 'Access denied. Only DELEGUE users can access this application.'
+                };
+            }
+
             authToken = data.success.token;
-            userData = data.success.data;
+            userData = user;
 
             // Store in localStorage
             localStorage.setItem('auth_token', authToken);
